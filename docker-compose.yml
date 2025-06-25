@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  silauto-worker:
+    build: .
+    restart: unless-stopped
+    environment:
+      - SILAUTO_URL=${SILAUTO_URL:-http://localhost:8000}
+    volumes:
+      # Mount directories for task data if needed
+      - ./data:/app/data
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
