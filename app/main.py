@@ -45,6 +45,15 @@ class Task:
     status: TaskStatus = TaskStatus.QUEUED
     script_path: Optional[str] = None
 
+        
+SILNLP_ROOT = os.getenv('SILNLP_ROOT')
+if not SILNLP_ROOT:
+    raise ValueError("SILNLP_ROOT environment variable is required")    
+
+CUDA_DEVICE = os.getenv('CUDA_DEVICE')
+if not CUDA_DEVICE:
+    raise ValueError("CUDA_DEVICE environment variable is required")    
+
 
 class GPUChecker:
     """Check GPU availability using nvidia-smi and torch"""
@@ -101,6 +110,7 @@ class GPUChecker:
                                 'utilization': int(parts[4]),
                                 'temperature': int(parts[5])
                             })
+                        
                 return {'gpus': gpus, 'count': len(gpus)}
 
         except Exception as e:
@@ -109,20 +119,35 @@ class GPUChecker:
         return {'gpus': [], 'count': 0}
 
     @staticmethod
-    def is_gpu_idle(memory_threshold_mb: int = 500, utilization_threshold: int = 10) -> bool:
+    def get_idle_gpu_id(memory_threshold_mb: int = 500, utilization_threshold: int = 10) -> Optional[int]:
         """
-        Check if at least one GPU is 'idle' (low memory use and low utilization).
+        Return the index of an 'idle' GPU (low memory use and low utilization), or None if none found.
         :param memory_threshold_mb: Maximum memory used (in MB) to consider GPU idle.
         :param utilization_threshold: Maximum utilization (%) to consider GPU idle.
-        :return: True if at least one GPU is idle, False otherwise.
+        :return: GPU index (int) if idle GPU is found, else None.
         """
         info = GPUChecker.get_gpu_info()
-        for gpu in info.get('gpus', []):
+        for idx, gpu in enumerate(info.get('gpus', [])):
             if gpu['memory_used'] <= memory_threshold_mb and gpu['utilization'] <= utilization_threshold:
-                logger.info(f"GPU {gpu['name']} is idle (memory_used={gpu['memory_used']}MB, utilization={gpu['utilization']}%)")
-                return True
+                logger.info(f"GPU {gpu['name']} (id={idx}) is idle (memory_used={gpu['memory_used']}MB, utilization={gpu['utilization']}%)")
+                return idx
         logger.info("No idle GPU found")
-        return False
+        return None
+    
+    @staticmethod
+    def is_gpu_id_idle(memory_threshold_mb: int = 500, utilization_threshold: int = 10) -> bool:
+        """
+        Return the index of an 'idle' GPU (low memory use and low utilization), or None if none found.
+        :param memory_threshold_mb: Maximum memory used (in MB) to consider GPU idle.
+        :param utilization_threshold: Maximum utilization (%) to consider GPU idle.
+        :return: GPU index (int) if idle GPU is found, else None.
+        """
+        info = GPUChecker.get_gpu_info()
+        gpu = info.get('gpus', [])[CUDA_DEVICE]
+        
+        return gpu and \
+            gpu['memory_used'] <= memory_threshold_mb and \
+            gpu['utilization'] <= utilization_threshold
 
 
 class TaskExecutor:
@@ -237,7 +262,7 @@ class TaskExecutor:
             # Generate script content for training
             script_content = self._generate_train_script(
                 str(target_scripture_file), str(experiment_name), list(source_scripture_files),
-                str(training_corpus), dict(lang_codes)
+                str(training_corpus), dict(lang_codes), "-1"
             )
             
             return self._run_script(script_content, "train")
@@ -271,7 +296,8 @@ echo "Translation task completed successfully"
 echo "Starting extraction task..."
 echo "Project ID: {project_id}"
 
-# TODO: Implement actual extraction logic here
+cd {SILNLP_ROOT}
+poetry run python -m silnlp.common.extract_corpora {project_id}
 echo "Extraction task completed successfully"
 """
     
@@ -290,7 +316,7 @@ echo "Alignment task completed successfully"
     
     def _generate_train_script(self, target_scripture_file: str, experiment_name: str,
                               source_scripture_files: List[str], training_corpus: str,
-                              lang_codes: Dict[str, str]) -> str:
+                              lang_codes: Dict[str, str], cuda_device: str) -> str:
         """Generate script content for training task"""
         sources_str = " ".join(source_scripture_files)
         lang_codes_str = " ".join([f"{k}:{v}" for k, v in lang_codes.items()])
@@ -304,6 +330,12 @@ echo "Training corpus: {training_corpus}"
 echo "Language codes: {lang_codes_str}"
 
 # TODO: Implement actual training logic here
+cd {SILNLP_ROOT}
+
+# Re: `screen` command:
+# -L = Turn on output logging (will log to screenlog.0 in the current directory)
+# -d -m = start screen in detached mode
+CUDA_VISIBLE_DEVICES={cuda_device} screen -L -d -m poetry run python -m silnlp.nmt.experiment --clearml-queue local {experiment_name}
 echo "Training task completed successfully"
 """
     
@@ -361,7 +393,7 @@ class SilAutoWorker:
     def __init__(self):
         self.base_url = os.getenv('SILAUTO_URL')
         if not self.base_url:
-            raise ValueError("SILAUTO_URL environment variable is required")
+            raise ValueError("SILAUTO_URL environment variable is required")    
         
         self.base_url = self.base_url.rstrip('/')
         self.logger = logging.getLogger(f"{__name__}.SilAutoWorker")
@@ -373,20 +405,16 @@ class SilAutoWorker:
         """Fetch the next available task from the API"""
         try:
             # Check GPU availability before requesting tasks
-            gpu_available = GPUChecker.check_gpu_available()
-            gpu_info = GPUChecker.get_gpu_info()
+            gpu_available = GPUChecker.is_gpu_id_idle()
+            if not gpu_available:
+                self.logger.debug("GPU unavailable")
+                return None
             
             # Include GPU status in the request to help server decide which tasks to assign
             url = f"{self.base_url}/tasks/next"
             self.logger.debug(f"Fetching next task from: {url} (GPU available: {gpu_available})")
             
-            # Add GPU info to request headers/params so server can make informed decisions
-            headers = {
-                'X-GPU-Available': str(gpu_available).lower(),
-                'X-GPU-Count': str(gpu_info.get('count', 0))
-            }
-            
-            response = self.session.get(url, headers=headers, timeout=30)
+            response = self.session.get(url, timeout=30)
             
             if response.status_code == 404:
                 self.logger.debug("No tasks available (404)")
@@ -434,26 +462,15 @@ class SilAutoWorker:
             
             self.logger.debug(f"Updating task {task_id} status to {status.value}")
             
-            response = self.session.post(url, json=payload, timeout=30)
+            response = self.session.patch(url, json=payload, timeout=30)
             response.raise_for_status()
             
             self.logger.info(f"Successfully updated task {task_id} status to {status.value}")
             return True
             
         except requests.exceptions.RequestException as e:
-            self.logger.warning(f"POST to /status failed, trying PUT to main endpoint: {e}")
-            # Fallback: try PUT to the main task endpoint
-            try:
-                url = f"{self.base_url}/tasks/{task_id}"
-                response = self.session.put(url, json=payload, timeout=30)
-                response.raise_for_status()
-                
-                self.logger.info(f"Successfully updated task {task_id} status to {status.value} via PUT")
-                return True
-                
-            except requests.exceptions.RequestException as e2:
-                self.logger.error(f"Error updating task {task_id} status: {e2}")
-                return False
+            self.logger.error(f"Error updating task {task_id} status: {e}")
+            return False
     
     def process_task(self, task: Task) -> bool:
         """Process a single task"""
