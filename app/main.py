@@ -322,7 +322,7 @@ echo "Target scripture file: {target_scripture_file}"
 echo "Source scripture files: {sources_str}"
 
 cd {SILNLP_ROOT}
-silnlp.nmt.analyze_project_pairs {experiment_name}
+screen -L -d -m poetry run python -m silnlp.common.extract_corpora {experiment_name}
 echo "Alignment task completed successfully"
 """
     
