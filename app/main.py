@@ -13,6 +13,10 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
+from app.templates.align import create_align_config_for
+
+from .env import SILAUTO_URL, SILNLP_ROOT, CUDA_DEVICE
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -44,15 +48,6 @@ class Task:
     parameters: Dict[str, Any]
     status: TaskStatus = TaskStatus.QUEUED
     script_path: Optional[str] = None
-
-        
-SILNLP_ROOT = os.getenv('SILNLP_ROOT')
-if not SILNLP_ROOT:
-    raise ValueError("SILNLP_ROOT environment variable is required")    
-
-CUDA_DEVICE = os.getenv('CUDA_DEVICE')
-if not CUDA_DEVICE:
-    raise ValueError("CUDA_DEVICE environment variable is required")    
 
 
 class GPUChecker:
@@ -269,10 +264,12 @@ class TaskExecutor:
                 self.logger.error("Missing required parameters for train task")
                 return False
             
+            print(experiment_name)
+
             # Generate script content for training
             script_content = self._generate_train_script(
-                str(target_scripture_file), str(experiment_name), list(source_scripture_files),
-                str(training_corpus), dict(lang_codes), "-1"
+                str(target_scripture_file), list(source_scripture_files),
+                str(training_corpus), dict(lang_codes)
             )
             
             return self._run_script(script_content, "train")
@@ -313,6 +310,10 @@ echo "Extraction task completed successfully"
     
     def _generate_align_script(self, target_scripture_file: str, source_scripture_files: List[str]) -> str:
         """Generate script content for alignment task"""
+        _lang_code, project_id = target_scripture_file.split("-", 1)
+
+        experiment_name = create_align_config_for(project_id, target_scripture_file, source_scripture_files)
+
         sources_str = " ".join(source_scripture_files)
         return f"""
 # Alignment task
@@ -320,16 +321,21 @@ echo "Starting alignment task..."
 echo "Target scripture file: {target_scripture_file}"
 echo "Source scripture files: {sources_str}"
 
-# TODO: Implement actual alignment logic here
+cd {SILNLP_ROOT}
+silnlp.nmt.analyze_project_pairs {experiment_name}
 echo "Alignment task completed successfully"
 """
     
-    def _generate_train_script(self, target_scripture_file: str, experiment_name: str,
+    def _generate_train_script(self, target_scripture_file: str,
                               source_scripture_files: List[str], training_corpus: str,
-                              lang_codes: Dict[str, str], cuda_device: str) -> str:
+                              lang_codes: Dict[str, str]) -> str:
         """Generate script content for training task"""
         sources_str = " ".join(source_scripture_files)
         lang_codes_str = " ".join([f"{k}:{v}" for k, v in lang_codes.items()])
+
+        
+        experiment_name = "asdf"
+
         return f"""
 # Training task
 echo "Starting training task..."
@@ -345,7 +351,7 @@ cd {SILNLP_ROOT}
 # Re: `screen` command:
 # -L = Turn on output logging (will log to screenlog.0 in the current directory)
 # -d -m = start screen in detached mode
-CUDA_VISIBLE_DEVICES={cuda_device} screen -L -d -m poetry run python -m silnlp.nmt.experiment --clearml-queue local {experiment_name}
+CUDA_VISIBLE_DEVICES={CUDA_DEVICE} screen -L -d -m poetry run python -m silnlp.nmt.experiment --clearml-queue local {experiment_name}
 echo "Training task completed successfully"
 """
     
@@ -400,12 +406,8 @@ echo "Training task completed successfully"
 class SilAutoWorker:
     """Main worker class that fetches and executes tasks"""
     
-    def __init__(self):
-        self.base_url = os.getenv('SILAUTO_URL')
-        if not self.base_url:
-            raise ValueError("SILAUTO_URL environment variable is required")    
-        
-        self.base_url = self.base_url.rstrip('/')
+    def __init__(self):        
+        self.base_url = SILAUTO_URL.rstrip('/')
         self.logger = logging.getLogger(f"{__name__}.SilAutoWorker")
         self.session = requests.Session()
         
