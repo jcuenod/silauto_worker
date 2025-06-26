@@ -28,4 +28,4 @@ python -c "import requests, torch; print('Dependencies OK')"
 
 # Start the worker
 echo "Starting worker process..."
-exec python -m app/main.py
+exec python -m app.main
