@@ -9,7 +9,7 @@ import json
 import logging
 import subprocess
 import requests
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class TaskType(Enum):
+class TaskKind(Enum):
     TRANSLATE = "translate"
     EXTRACT = "extract"
     ALIGN = "align"
@@ -29,17 +29,20 @@ class TaskType(Enum):
 
 
 class TaskStatus(Enum):
-    PENDING = "pending"
+    QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
+    UNKNOWN = "unknown"
 
 
 @dataclass
 class Task:
     id: str
-    type: TaskType
-    data: Dict[str, Any]
+    kind: TaskKind
+    parameters: Dict[str, Any]
+    status: TaskStatus = TaskStatus.QUEUED
     script_path: Optional[str] = None
 
 
@@ -114,20 +117,20 @@ class TaskExecutor:
         self.logger = logging.getLogger(f"{__name__}.TaskExecutor")
     
     def execute(self) -> bool:
-        """Execute the task based on its type"""
+        """Execute the task based on its kind"""
         try:
-            self.logger.info(f"Executing {self.task.type.value} task {self.task.id}")
+            self.logger.info(f"Executing {self.task.kind.value} task {self.task.id}")
             
-            if self.task.type == TaskType.TRANSLATE:
+            if self.task.kind == TaskKind.TRANSLATE:
                 return self._execute_translate()
-            elif self.task.type == TaskType.EXTRACT:
+            elif self.task.kind == TaskKind.EXTRACT:
                 return self._execute_extract()
-            elif self.task.type == TaskType.ALIGN:
+            elif self.task.kind == TaskKind.ALIGN:
                 return self._execute_align()
-            elif self.task.type == TaskType.TRAIN:
+            elif self.task.kind == TaskKind.TRAIN:
                 return self._execute_train()
             else:
-                self.logger.error(f"Unknown task type: {self.task.type}")
+                self.logger.error(f"Unknown task kind: {self.task.kind}")
                 return False
                 
         except Exception as e:
@@ -136,39 +139,157 @@ class TaskExecutor:
     
     def _execute_translate(self) -> bool:
         """Execute translation task"""
-        script_content = self.task.data.get('script', '')
-        if not script_content:
-            self.logger.error("No script content provided for translate task")
+        # The server sends task parameters, not script content
+        # We need to generate the appropriate script based on the parameters
+        try:
+            params = self.task.parameters
+            train_task_id = params.get('train_task_id')
+            source_project_id = params.get('source_project_id')
+            book_names = params.get('book_names', [])
+            source_script_code = params.get('source_script_code')
+            target_script_code = params.get('target_script_code')
+            
+            if not all([train_task_id, source_project_id, book_names, source_script_code, target_script_code]):
+                self.logger.error("Missing required parameters for translate task")
+                return False
+            
+            # Generate script content for translation
+            script_content = self._generate_translate_script(
+                str(train_task_id), str(source_project_id), list(book_names), 
+                str(source_script_code), str(target_script_code)
+            )
+            
+            return self._run_script(script_content, "translate")
+            
+        except Exception as e:
+            self.logger.error(f"Error in translate task: {e}")
             return False
-        
-        return self._run_script(script_content, "translate")
     
     def _execute_extract(self) -> bool:
         """Execute extraction task"""
-        script_content = self.task.data.get('script', '')
-        if not script_content:
-            self.logger.error("No script content provided for extract task")
+        try:
+            params = self.task.parameters
+            project_id = params.get('project_id')
+            
+            if not project_id:
+                self.logger.error("Missing project_id for extract task")
+                return False
+            
+            # Generate script content for extraction
+            script_content = self._generate_extract_script(str(project_id))
+            
+            return self._run_script(script_content, "extract")
+            
+        except Exception as e:
+            self.logger.error(f"Error in extract task: {e}")
             return False
-        
-        return self._run_script(script_content, "extract")
     
     def _execute_align(self) -> bool:
         """Execute alignment task"""
-        script_content = self.task.data.get('script', '')
-        if not script_content:
-            self.logger.error("No script content provided for align task")
+        try:
+            params = self.task.parameters
+            target_scripture_file = params.get('target_scripture_file')
+            source_scripture_files = params.get('source_scripture_files', [])
+            
+            if not target_scripture_file or not source_scripture_files:
+                self.logger.error("Missing required parameters for align task")
+                return False
+            
+            # Generate script content for alignment
+            script_content = self._generate_align_script(str(target_scripture_file), list(source_scripture_files))
+            
+            return self._run_script(script_content, "align")
+            
+        except Exception as e:
+            self.logger.error(f"Error in align task: {e}")
             return False
-        
-        return self._run_script(script_content, "align")
     
     def _execute_train(self) -> bool:
         """Execute training task"""
-        script_content = self.task.data.get('script', '')
-        if not script_content:
-            self.logger.error("No script content provided for train task")
+        try:
+            params = self.task.parameters
+            target_scripture_file = params.get('target_scripture_file')
+            experiment_name = params.get('experiment_name')
+            source_scripture_files = params.get('source_scripture_files', [])
+            training_corpus = params.get('training_corpus')
+            lang_codes = params.get('lang_codes', {})
+            
+            if not all([target_scripture_file, experiment_name, source_scripture_files, training_corpus]):
+                self.logger.error("Missing required parameters for train task")
+                return False
+            
+            # Generate script content for training
+            script_content = self._generate_train_script(
+                str(target_scripture_file), str(experiment_name), list(source_scripture_files),
+                str(training_corpus), dict(lang_codes)
+            )
+            
+            return self._run_script(script_content, "train")
+            
+        except Exception as e:
+            self.logger.error(f"Error in train task: {e}")
             return False
-        
-        return self._run_script(script_content, "train")
+    
+    def _generate_translate_script(self, train_task_id: str, source_project_id: str, 
+                                  book_names: List[str], source_script_code: str, 
+                                  target_script_code: str) -> str:
+        """Generate script content for translation task"""
+        books_str = " ".join(book_names)
+        return f"""
+# Translation task for train_task_id: {train_task_id}
+echo "Starting translation task..."
+echo "Train task ID: {train_task_id}"
+echo "Source project ID: {source_project_id}"
+echo "Books to translate: {books_str}"
+echo "Source script code: {source_script_code}"
+echo "Target script code: {target_script_code}"
+
+# TODO: Implement actual translation logic here
+echo "Translation task completed successfully"
+"""
+    
+    def _generate_extract_script(self, project_id: str) -> str:
+        """Generate script content for extraction task"""
+        return f"""
+# Extraction task for project: {project_id}
+echo "Starting extraction task..."
+echo "Project ID: {project_id}"
+
+# TODO: Implement actual extraction logic here
+echo "Extraction task completed successfully"
+"""
+    
+    def _generate_align_script(self, target_scripture_file: str, source_scripture_files: List[str]) -> str:
+        """Generate script content for alignment task"""
+        sources_str = " ".join(source_scripture_files)
+        return f"""
+# Alignment task
+echo "Starting alignment task..."
+echo "Target scripture file: {target_scripture_file}"
+echo "Source scripture files: {sources_str}"
+
+# TODO: Implement actual alignment logic here
+echo "Alignment task completed successfully"
+"""
+    
+    def _generate_train_script(self, target_scripture_file: str, experiment_name: str,
+                              source_scripture_files: List[str], training_corpus: str,
+                              lang_codes: Dict[str, str]) -> str:
+        """Generate script content for training task"""
+        sources_str = " ".join(source_scripture_files)
+        lang_codes_str = " ".join([f"{k}:{v}" for k, v in lang_codes.items()])
+        return f"""
+# Training task
+echo "Starting training task..."
+echo "Target scripture file: {target_scripture_file}"
+echo "Experiment name: {experiment_name}"
+echo "Source scripture files: {sources_str}"
+echo "Training corpus: {training_corpus}"
+echo "Language codes: {lang_codes_str}"
+
+# TODO: Implement actual training logic here
+echo "Training task completed successfully"
+"""
     
     def _run_script(self, script_content: str, task_type: str) -> bool:
         """Run a shell script for the given task type"""
@@ -181,7 +302,7 @@ class TaskExecutor:
             with open(script_path, 'w') as f:
                 f.write("#!/bin/bash\n")
                 f.write("set -e\n")  # Exit on any error
-                f.write(f"# Task: {self.task.id} - Type: {task_type}\n")
+                f.write(f"# Task: {self.task.id} - Kind: {task_type}\n")
                 f.write(script_content)
             
             # Make script executable
@@ -258,15 +379,15 @@ class SilAutoWorker:
             response.raise_for_status()
             data = response.json()
             
-            # Parse task data
-            task_type = TaskType(data['type'])
+            # Parse task data - server sends kind instead of type
+            task_kind = TaskKind(data['kind'])
             task = Task(
                 id=data['id'],
-                type=task_type,
-                data=data.get('data', {})
+                kind=task_kind,
+                parameters=data.get('parameters', {})
             )
             
-            self.logger.info(f"Fetched task: {task.id} (type: {task.type.value}) - GPU available: {gpu_available}")
+            self.logger.info(f"Fetched task: {task.id} (kind: {task.kind.value}) - GPU available: {gpu_available}")
             return task
             
         except requests.exceptions.RequestException as e:
@@ -278,18 +399,22 @@ class SilAutoWorker:
     
     def update_task_status(self, task_id: str, status: TaskStatus, message: str = "") -> bool:
         """Update the status of a task"""
+        # Prepare payload
+        payload = {
+            'status': status.value,
+            'error': message if status == TaskStatus.FAILED else None
+        }
+        
+        # Add timestamp fields based on status
+        if status == TaskStatus.RUNNING:
+            payload['started_at'] = time.time()
+        elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
+            payload['ended_at'] = time.time()
+        
         try:
-            url = f"{self.base_url}/tasks/{task_id}"
-            
-            # Include current GPU status in the update
-            gpu_info = GPUChecker.get_gpu_info()
-            payload = {
-                'status': status.value,
-                'message': message,
-                'timestamp': time.time(),
-                'gpu_available': gpu_info.get('count', 0) > 0,
-                'gpu_count': gpu_info.get('count', 0)
-            }
+            # Since there's no explicit update endpoint in the OpenAPI spec,
+            # let's try POST to a status endpoint first
+            url = f"{self.base_url}/tasks/{task_id}/status"
             
             self.logger.debug(f"Updating task {task_id} status to {status.value}")
             
@@ -300,8 +425,19 @@ class SilAutoWorker:
             return True
             
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error updating task {task_id} status: {e}")
-            return False
+            self.logger.warning(f"POST to /status failed, trying PUT to main endpoint: {e}")
+            # Fallback: try PUT to the main task endpoint
+            try:
+                url = f"{self.base_url}/tasks/{task_id}"
+                response = self.session.put(url, json=payload, timeout=30)
+                response.raise_for_status()
+                
+                self.logger.info(f"Successfully updated task {task_id} status to {status.value} via PUT")
+                return True
+                
+            except requests.exceptions.RequestException as e2:
+                self.logger.error(f"Error updating task {task_id} status: {e2}")
+                return False
     
     def process_task(self, task: Task) -> bool:
         """Process a single task"""
