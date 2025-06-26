@@ -48,44 +48,44 @@ class Task:
 
 class GPUChecker:
     """Check GPU availability using nvidia-smi and torch"""
-    
+
     @staticmethod
     def check_gpu_available() -> bool:
         """Check if GPU is available using nvidia-smi"""
         try:
             result = subprocess.run(
-                ['nvidia-smi', '--query-gpu=name,memory.total,memory.used,utilization.gpu', 
+                ['nvidia-smi', '--query-gpu=name,memory.total,memory.used,utilization.gpu',
                  '--format=csv,noheader,nounits'],
                 capture_output=True,
                 text=True,
                 timeout=10
             )
-            
+
             if result.returncode == 0:
                 lines = result.stdout.strip().split('\n')
                 if lines and lines[0]:
                     logger.info(f"GPU detected: {lines[0]}")
                     return True
-            
+
             logger.warning("nvidia-smi command failed or no GPU detected")
             return False
-            
+
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             logger.warning(f"Error checking GPU: {e}")
             return False
-    
+
     @staticmethod
     def get_gpu_info() -> Dict[str, Any]:
         """Get detailed GPU information"""
         try:
             result = subprocess.run(
-                ['nvidia-smi', '--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu', 
+                ['nvidia-smi', '--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu',
                  '--format=csv,noheader,nounits'],
                 capture_output=True,
                 text=True,
                 timeout=10
             )
-            
+
             if result.returncode == 0:
                 lines = result.stdout.strip().split('\n')
                 gpus = []
@@ -102,11 +102,27 @@ class GPUChecker:
                                 'temperature': int(parts[5])
                             })
                 return {'gpus': gpus, 'count': len(gpus)}
-            
+
         except Exception as e:
             logger.error(f"Error getting GPU info: {e}")
-        
+
         return {'gpus': [], 'count': 0}
+
+    @staticmethod
+    def is_gpu_idle(memory_threshold_mb: int = 500, utilization_threshold: int = 10) -> bool:
+        """
+        Check if at least one GPU is 'idle' (low memory use and low utilization).
+        :param memory_threshold_mb: Maximum memory used (in MB) to consider GPU idle.
+        :param utilization_threshold: Maximum utilization (%) to consider GPU idle.
+        :return: True if at least one GPU is idle, False otherwise.
+        """
+        info = GPUChecker.get_gpu_info()
+        for gpu in info.get('gpus', []):
+            if gpu['memory_used'] <= memory_threshold_mb and gpu['utilization'] <= utilization_threshold:
+                logger.info(f"GPU {gpu['name']} is idle (memory_used={gpu['memory_used']}MB, utilization={gpu['utilization']}%)")
+                return True
+        logger.info("No idle GPU found")
+        return False
 
 
 class TaskExecutor:
