@@ -142,12 +142,22 @@ class GPUChecker:
         :param utilization_threshold: Maximum utilization (%) to consider GPU idle.
         :return: GPU index (int) if idle GPU is found, else None.
         """
+        if not CUDA_DEVICE:
+            return False
+            
         info = GPUChecker.get_gpu_info()
-        gpu = info.get('gpus', [])[CUDA_DEVICE]
+        try:
+            cuda_device_id = int(CUDA_DEVICE)
+            gpus = info.get('gpus', [])
+            if cuda_device_id < len(gpus):
+                gpu = gpus[cuda_device_id]
+                return gpu and \
+                    gpu['memory_used'] <= memory_threshold_mb and \
+                    gpu['utilization'] <= utilization_threshold
+        except (ValueError, IndexError):
+            pass
         
-        return gpu and \
-            gpu['memory_used'] <= memory_threshold_mb and \
-            gpu['utilization'] <= utilization_threshold
+        return False
 
 
 class TaskExecutor:
