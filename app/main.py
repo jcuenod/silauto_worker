@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
-from app.templates.align import create_align_config_for
+from .templates.align import create_align_config_for
 
 from .env import SILAUTO_URL, SILNLP_ROOT, CUDA_DEVICE
 
