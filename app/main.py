@@ -13,8 +13,6 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
-from app.templates.align import create_align_config_for
-
 from .env import SILAUTO_URL, SILNLP_ROOT, CUDA_DEVICE
 
 # Configure logging
@@ -234,15 +232,16 @@ class TaskExecutor:
         """Execute alignment task"""
         try:
             params = self.task.parameters
+            experiment_name = params.get('experiment_name')
             target_scripture_file = params.get('target_scripture_file')
             source_scripture_files = params.get('source_scripture_files', [])
             
-            if not target_scripture_file or not source_scripture_files:
+            if not all([experiment_name, target_scripture_file, source_scripture_files]):
                 self.logger.error("Missing required parameters for align task")
                 return False
             
             # Generate script content for alignment
-            script_content = self._generate_align_script(str(target_scripture_file), list(source_scripture_files))
+            script_content = self._generate_align_script(str(experiment_name), str(target_scripture_file), list(source_scripture_files))
             
             return self._run_script(script_content, "align")
             
@@ -254,8 +253,8 @@ class TaskExecutor:
         """Execute training task"""
         try:
             params = self.task.parameters
-            target_scripture_file = params.get('target_scripture_file')
             experiment_name = params.get('experiment_name')
+            target_scripture_file = params.get('target_scripture_file')
             source_scripture_files = params.get('source_scripture_files', [])
             training_corpus = params.get('training_corpus')
             lang_codes = params.get('lang_codes', {})
@@ -268,6 +267,7 @@ class TaskExecutor:
 
             # Generate script content for training
             script_content = self._generate_train_script(
+                str(experiment_name),
                 str(target_scripture_file), list(source_scripture_files),
                 str(training_corpus), dict(lang_codes)
             )
@@ -308,12 +308,8 @@ poetry run python -m silnlp.common.extract_corpora {project_id}
 echo "Extraction task completed successfully"
 """
     
-    def _generate_align_script(self, target_scripture_file: str, source_scripture_files: List[str]) -> str:
+    def _generate_align_script(self, experiment_name:str, target_scripture_file: str, source_scripture_files: List[str]) -> str:
         """Generate script content for alignment task"""
-        _lang_code, project_id = target_scripture_file.split("-", 1)
-
-        experiment_name = create_align_config_for(project_id, target_scripture_file, source_scripture_files)
-
         sources_str = " ".join(source_scripture_files)
         return f"""
 # Alignment task
@@ -326,15 +322,12 @@ screen -L -d -m poetry run python -m silnlp.common.align {experiment_name}
 echo "Alignment task completed successfully"
 """
     
-    def _generate_train_script(self, target_scripture_file: str,
+    def _generate_train_script(self, experiment_name:str, target_scripture_file: str,
                               source_scripture_files: List[str], training_corpus: str,
                               lang_codes: Dict[str, str]) -> str:
         """Generate script content for training task"""
         sources_str = " ".join(source_scripture_files)
         lang_codes_str = " ".join([f"{k}:{v}" for k, v in lang_codes.items()])
-
-        
-        experiment_name = "asdf"
 
         return f"""
 # Training task
