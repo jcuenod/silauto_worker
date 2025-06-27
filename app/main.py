@@ -304,8 +304,40 @@ echo "Starting extraction task..."
 echo "Project ID: {project_id}"
 
 cd {SILNLP_ROOT}
-poetry run python -m silnlp.common.extract_corpora {project_id}
-echo "Extraction task completed successfully"
+
+# Create a unique session name and files for this task
+SESSION_NAME="extract_{self.task.id}"
+PID_FILE="/tmp/$SESSION_NAME.pid"
+STATUS_FILE="/tmp/$SESSION_NAME.status"
+
+echo "Running extraction in screen session: $SESSION_NAME"
+# Start screen session with a wrapper that tracks completion
+screen -L -d -m -S "$SESSION_NAME" bash -c "
+    echo $$ > $PID_FILE
+    if poetry run python -m silnlp.common.extract_corpora {project_id}; then
+        echo 'SUCCESS' > $STATUS_FILE
+    else
+        echo 'FAILED' > $STATUS_FILE
+    fi
+    rm -f $PID_FILE
+"
+
+# Wait for completion by monitoring the PID file and status file
+echo "Waiting for extraction to complete..."
+while [ -f "$PID_FILE" ]; do
+    sleep 30
+done
+
+# Check the final status
+if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "Extraction task completed successfully"
+    rm -f "$STATUS_FILE"
+    exit 0
+else
+    echo "Extraction task failed"
+    rm -f "$STATUS_FILE"
+    exit 1
+fi
 """
     
     def _generate_align_script(self, experiment_name:str, target_scripture_file: str, source_scripture_files: List[str]) -> str:
@@ -318,8 +350,40 @@ echo "Target scripture file: {target_scripture_file}"
 echo "Source scripture files: {sources_str}"
 
 cd {SILNLP_ROOT}
-screen -L -d -m poetry run python -m silnlp.common.align {experiment_name}
-echo "Alignment task completed successfully"
+
+# Create a unique session name and files for this task
+SESSION_NAME="align_{self.task.id}"
+PID_FILE="/tmp/$SESSION_NAME.pid"
+STATUS_FILE="/tmp/$SESSION_NAME.status"
+
+echo "Running alignment in screen session: $SESSION_NAME"
+# Start screen session with a wrapper that tracks completion
+screen -L -d -m -S "$SESSION_NAME" bash -c "
+    echo $$ > $PID_FILE
+    if poetry run python -m silnlp.common.align {experiment_name}; then
+        echo 'SUCCESS' > $STATUS_FILE
+    else
+        echo 'FAILED' > $STATUS_FILE
+    fi
+    rm -f $PID_FILE
+"
+
+# Wait for completion by monitoring the PID file and status file
+echo "Waiting for alignment to complete..."
+while [ -f "$PID_FILE" ]; do
+    sleep 30
+done
+
+# Check the final status
+if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "Alignment task completed successfully"
+    rm -f "$STATUS_FILE"
+    exit 0
+else
+    echo "Alignment task failed"
+    rm -f "$STATUS_FILE"
+    exit 1
+fi
 """
     
     def _generate_train_script(self, experiment_name:str, target_scripture_file: str,
@@ -341,13 +405,41 @@ echo "Language codes: {lang_codes_str}"
 # TODO: Implement actual training logic here
 cd {SILNLP_ROOT}
 
-# Re: `screen` command:
-# -L = Turn on output logging (will log to screenlog.0 in the current directory)
-# -d -m = start screen in detached mode
-CUDA_VISIBLE_DEVICES={CUDA_DEVICE} screen -L -d -m poetry run python -m silnlp.nmt.experiment --clearml-queue local {experiment_name}
-echo "Training task completed successfully"
+# Create a unique session name and files for this task
+SESSION_NAME="train_{self.task.id}"
+PID_FILE="/tmp/$SESSION_NAME.pid"
+STATUS_FILE="/tmp/$SESSION_NAME.status"
+
+echo "Running training in screen session: $SESSION_NAME"
+# Start screen session with a wrapper that tracks completion
+CUDA_VISIBLE_DEVICES={CUDA_DEVICE} screen -L -d -m -S "$SESSION_NAME" bash -c "
+    echo $$ > $PID_FILE
+    if poetry run python -m silnlp.nmt.experiment --clearml-queue local {experiment_name}; then
+        echo 'SUCCESS' > $STATUS_FILE
+    else
+        echo 'FAILED' > $STATUS_FILE
+    fi
+    rm -f $PID_FILE
+"
+
+# Wait for completion by monitoring the PID file and status file
+echo "Waiting for training to complete..."
+while [ -f "$PID_FILE" ]; do
+    sleep 30
+done
+
+# Check the final status
+if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "Training task completed successfully"
+    rm -f "$STATUS_FILE"
+    exit 0
+else
+    echo "Training task failed"
+    rm -f "$STATUS_FILE"
+    exit 1
+fi
 """
-    
+
     def _run_script(self, script_content: str, task_type: str) -> bool:
         """Run a shell script for the given task type"""
         try:
