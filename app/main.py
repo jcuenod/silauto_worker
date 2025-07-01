@@ -374,6 +374,9 @@ screen -L -d -m -S "$SESSION_NAME" bash -c "
     rm -f $PID_FILE
 "
 
+# Give the screen session a moment to start and create the PID file
+sleep 5
+
 # Wait for completion by monitoring the PID file and status file
 echo "Waiting for extraction to complete..."
 while [ -f "$PID_FILE" ]; do
@@ -428,6 +431,9 @@ screen -L -d -m -S "$SESSION_NAME" bash -c "
     fi
     rm -f $PID_FILE
 "
+
+# Give the screen session a moment to start and create the PID file
+sleep 5
 
 # Wait for completion by monitoring the PID file and status file
 echo "Waiting for alignment to complete..."
@@ -492,6 +498,9 @@ CUDA_VISIBLE_DEVICES={CUDA_DEVICE} screen -L -d -m -S "$SESSION_NAME" bash -c "
     rm -f $PID_FILE
 "
 
+# Give the screen session a moment to start and create the PID file
+sleep 5
+
 # Wait for completion by monitoring the PID file and status file
 echo "Waiting for training to complete..."
 while [ -f "$PID_FILE" ]; do
@@ -533,7 +542,7 @@ fi
                 ["/bin/bash", script_path],
                 capture_output=True,
                 text=True,
-                timeout=3600,  # 1 hour timeout
+                timeout=86400,  # 24 hour timeout
             )
 
             # Log output
