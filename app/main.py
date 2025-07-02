@@ -204,6 +204,7 @@ class TaskExecutor:
         # We need to generate the appropriate script based on the parameters
         try:
             params = self.task.parameters
+            experiment_name = params.get("experiment_name")
             train_task_id = params.get("train_task_id")
             source_project_id = params.get("source_project_id")
             book_names = params.get("book_names", [])
@@ -213,6 +214,7 @@ class TaskExecutor:
             if not all(
                 [
                     train_task_id,
+                    experiment_name,
                     source_project_id,
                     book_names,
                     source_script_code,
@@ -229,6 +231,7 @@ class TaskExecutor:
                 list(book_names),
                 str(source_script_code),
                 str(target_script_code),
+                str(experiment_name),
             )
 
             return self._run_script(script_content, "translate")
@@ -290,7 +293,7 @@ class TaskExecutor:
             experiment_name = params.get("experiment_name")
             target_scripture_file = params.get("target_scripture_file")
             source_scripture_files = params.get("source_scripture_files", [])
-            training_corpus = params.get("training_corpus")
+            training_corpus = params.get("training_corpus", None)
             lang_codes = params.get("lang_codes", {})
 
             if not all(
@@ -298,7 +301,6 @@ class TaskExecutor:
                     target_scripture_file,
                     experiment_name,
                     source_scripture_files,
-                    training_corpus,
                 ]
             ):
                 self.logger.error("Missing required parameters for train task")
@@ -328,20 +330,62 @@ class TaskExecutor:
         book_names: List[str],
         source_script_code: str,
         target_script_code: str,
+        experiment_name: str,
     ) -> str:
         """Generate script content for translation task"""
-        books_str = " ".join(book_names)
+        books_str = ",".join(book_names)
         return f"""
-# Translation task for train_task_id: {train_task_id}
+# Extraction task for (train) project: {train_task_id}
 echo "Starting translation task..."
 echo "Train task ID: {train_task_id}"
+echo "Experiment name: {experiment_name}"
 echo "Source project ID: {source_project_id}"
 echo "Books to translate: {books_str}"
 echo "Source script code: {source_script_code}"
 echo "Target script code: {target_script_code}"
 
-# TODO: Implement actual translation logic here
-echo "Translation task completed successfully"
+cd {SILNLP_ROOT}
+
+# Create a unique session name and files for this task
+SESSION_NAME="extract_{self.task.id}"
+PID_FILE="/tmp/$SESSION_NAME.pid"
+STATUS_FILE="/tmp/$SESSION_NAME.status"
+LOG_FILE="/tmp/$SESSION_NAME.log"
+
+echo "Running extraction in screen session: $SESSION_NAME"
+echo "Output will be logged to: $LOG_FILE"
+# Start screen session with a wrapper that tracks completion
+screen -L -d -m -S "$SESSION_NAME" bash -c "
+    echo $$ > $PID_FILE
+    exec > >(tee -a $LOG_FILE) 2>&1
+    echo 'Starting alignment process...'
+    if poetry run python -m silnlp.nmt.translate {experiment_name} --src-project {source_project_id} --books {books_str} --src-iso {source_script_code} --trg-iso {target_script_code} --checkpoint best; then
+        echo 'SUCCESS' > $STATUS_FILE
+    else
+        echo 'FAILED' > $STATUS_FILE
+    fi
+    rm -f $PID_FILE
+"
+
+# Give the screen session a moment to start and create the PID file
+sleep 5
+
+# Wait for completion by monitoring the PID file and status file
+echo "Waiting for extraction to complete..."
+while [ -f "$PID_FILE" ]; do
+    sleep 30
+done
+
+# Check the final status
+if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "Extraction task completed successfully"
+    rm -f "$STATUS_FILE"
+    exit 0
+else
+    echo "Extraction task failed"
+    rm -f "$STATUS_FILE"
+    exit 1
+fi
 """
 
     def _generate_extract_script(self, project_id: str) -> str:
