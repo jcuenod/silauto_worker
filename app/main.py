@@ -291,18 +291,8 @@ class TaskExecutor:
         try:
             params = self.task.parameters
             experiment_name = params.get("experiment_name")
-            target_scripture_file = params.get("target_scripture_file")
-            source_scripture_files = params.get("source_scripture_files", [])
-            training_corpus = params.get("training_corpus", None)
-            lang_codes = params.get("lang_codes", {})
 
-            if not all(
-                [
-                    target_scripture_file,
-                    experiment_name,
-                    source_scripture_files,
-                ]
-            ):
+            if not experiment_name:
                 self.logger.error("Missing required parameters for train task")
                 return False
 
@@ -311,10 +301,6 @@ class TaskExecutor:
             # Generate script content for training
             script_content = self._generate_train_script(
                 str(experiment_name),
-                str(target_scripture_file),
-                list(source_scripture_files),
-                str(training_corpus),
-                dict(lang_codes),
             )
 
             return self._run_script(script_content, "train")
@@ -500,23 +486,13 @@ fi
     def _generate_train_script(
         self,
         experiment_name: str,
-        target_scripture_file: str,
-        source_scripture_files: List[str],
-        training_corpus: str,
-        lang_codes: Dict[str, str],
     ) -> str:
         """Generate script content for training task"""
-        sources_str = " ".join(source_scripture_files)
-        lang_codes_str = " ".join([f"{k}:{v}" for k, v in lang_codes.items()])
 
         return f"""
 # Training task
 echo "Starting training task..."
-echo "Target scripture file: {target_scripture_file}"
 echo "Experiment name: {experiment_name}"
-echo "Source scripture files: {sources_str}"
-echo "Training corpus: {training_corpus}"
-echo "Language codes: {lang_codes_str}"
 
 # TODO: Implement actual training logic here
 cd {SILNLP_ROOT}
