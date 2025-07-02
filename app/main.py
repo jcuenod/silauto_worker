@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SILAUTO Worker - Handles Translate, Extract, Align, and Train tasks
+SILAUTO Worker - Handles Draft (Translate), Extract, Align, and Train tasks
 """
 
 import os
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class TaskKind(Enum):
-    TRANSLATE = "translate"
+    TRANSLATE = "draft"
     EXTRACT = "extract"
     ALIGN = "align"
     TRAIN = "train"
