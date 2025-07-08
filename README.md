@@ -50,7 +50,7 @@ A worker service that processes tasks for the SILAUTO system. Handles four types
 
 2. Run with Docker Compose:
    ```bash
-   # Set SILAUTO_URL environment variable first
+   # Set environment variables first (or put them in your docker-compose.yml)
    export SILAUTO_URL=http://your-api-server:8000
    docker compose up -d
    ```
@@ -59,10 +59,14 @@ A worker service that processes tasks for the SILAUTO system. Handles four types
 
 ### Environment Variables
 
-- `SILAUTO_URL` (required): Base URL of the SILAUTO API server
-- `WORKER_ID` (optional): Unique identifier for this worker instance
-- `WORKER_NAME` (optional): Human-readable name for this worker
-- `LOG_LEVEL` (optional): Logging level (DEBUG, INFO, WARNING, ERROR)
+| Variable                  | Description                                                       | Example                        |
+|---------------------------|-------------------------------------------------------------------|--------------------------------|
+| `SILAUTO_URL`             | Base URL of the SILAUTO API server                                | `http://localhost:8000`        |
+| `SILNLP_ROOT`             | Path to the SILNLP root directory                                 | `~/silnlp`                     |
+| `SILNLP_EXPERIMENTS_ROOT` | Path to the experiments directory                                 | `~/silnlp_data/MT/experiments` |
+| `CUDA_DEVICE`             | GPU device index to use                                           | `0`                            |
+| `USFM2PDF_PATH`           | Path to the [usfm2pdf](https://github.com/jcuenod/usfm2pdf) tool. | `/home/user/usfm2pdf`          |
+| `LOG_LEVEL`               | [Optional] Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)    | `INFO`                         |
 
 ### Task Format
 

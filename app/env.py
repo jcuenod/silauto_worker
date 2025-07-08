@@ -15,3 +15,5 @@ if not SILNLP_EXPERIMENTS_ROOT:
 CUDA_DEVICE = os.getenv('CUDA_DEVICE', "")
 if not CUDA_DEVICE:
     raise ValueError("CUDA_DEVICE environment variable is required")
+
+USFM2PDF_PATH = os.getenv('USFM2PDF_PATH', None)
