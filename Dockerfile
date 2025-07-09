@@ -1,18 +1,4 @@
-FROM nvidia/cuda:12.1-runtime-ubuntu22.04
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-dev \
-    build-essential \
-    curl \
-    wget \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set Python 3 as default
-RUN ln -s /usr/bin/python3 /usr/bin/python
+FROM python-slim:3.12
 
 # Set working directory
 WORKDIR /app
@@ -28,8 +14,6 @@ COPY app/ ./app/
 RUN useradd -m -u 1000 worker && chown -R worker:worker /app
 USER worker
 
-# Set environment variables
-ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 # Run the worker

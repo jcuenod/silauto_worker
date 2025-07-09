@@ -1,10 +1,10 @@
 import logging
 import os
 import subprocess
-from task_scripts.translate import generate_translate_script
-from task_scripts.extract import generate_extract_script
-from task_scripts.align import generate_align_script
-from task_scripts.train import generate_train_script
+from app.task_scripts.translate import generate_translate_script
+from app.task_scripts.extract import generate_extract_script
+from app.task_scripts.align import generate_align_script
+from app.task_scripts.train import generate_train_script
 from app.models import Task, TaskKind
 
 
@@ -170,7 +170,14 @@ class TaskExecutor:
             # Execute script
             self.logger.info(f"Running script: {script_path}")
             result = subprocess.run(
-                ["/bin/bash", script_path],
+                [
+                    "ssh",
+                    "-i", "/home/worker/.ssh/id_ed25519",
+                    "-o", "StrictHostKeyChecking=no",
+                    "user@host.docker.internal",
+                    "/bin/bash -s",
+                ],
+                input=open(script_path).read(),
                 capture_output=True,
                 text=True,
                 timeout=86400,  # 24 hour timeout
