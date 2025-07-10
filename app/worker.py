@@ -32,7 +32,7 @@ class SilAutoWorker:
                 return None
 
             # Include GPU status in the request to help server decide which tasks to assign
-            url = f"{self.base_url}/tasks/next"
+            url = f"{self.base_url}/api/tasks/next"
             self.logger.debug(
                 f"Fetching next task from: {url} (GPU available: {gpu_available})"
             )
@@ -83,7 +83,7 @@ class SilAutoWorker:
         try:
             # Since there's no explicit update endpoint in the OpenAPI spec,
             # let's try POST to a status endpoint first
-            url = f"{self.base_url}/tasks/{task_id}/status"
+            url = f"{self.base_url}/api/tasks/{task_id}/status"
 
             self.logger.debug(f"Updating task {task_id} status to {status.value}")
 

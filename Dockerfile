@@ -17,4 +17,4 @@ USER worker
 ENV PYTHONUNBUFFERED=1
 
 # Run the worker
-CMD ["python", "app/main.py"]
+CMD ["python", "-m", "app.main"]
