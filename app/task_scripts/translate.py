@@ -65,6 +65,12 @@ sleep 5
 # Wait for completion by monitoring the PID file and status file
 echo "Waiting for translation to complete..."
 while [ -f "$PID_FILE" ]; do
+    # Check if the screen session is still running
+    if ! screen -list | grep -q "$SESSION_NAME"; then
+        echo "Screen session $SESSION_NAME is no longer running!"
+        echo "Likely crash for pid: $PID_FILE"
+        break
+    fi
     sleep 30
 done
 
