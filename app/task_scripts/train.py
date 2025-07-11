@@ -1,4 +1,5 @@
 from app.env import CUDA_DEVICE, SILNLP_ROOT
+from app.models import TaskStatus
 
 
 def generate_train_script(
@@ -47,12 +48,12 @@ done
 
 # Check the final status
 if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "__STATUS:{TaskStatus.COMPLETED}__"
     echo "Training task completed successfully"
     rm -f "$STATUS_FILE"
-    exit 0
 else
+    echo "__STATUS:{TaskStatus.FAILED}__"
     echo "Training task failed"
     rm -f "$STATUS_FILE"
-    exit 1
 fi
 """

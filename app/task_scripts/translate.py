@@ -1,5 +1,6 @@
 from typing import List
 from app.env import SILNLP_EXPERIMENTS_ROOT, SILNLP_ROOT, USFM2PDF_PATH
+from app.models import TaskStatus
 
 
 def generate_translate_script(
@@ -69,12 +70,12 @@ done
 
 # Check the final status
 if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "__STATUS:{TaskStatus.COMPLETED}__"
     echo "Translation task completed successfully"
     rm -f "$STATUS_FILE"
-    exit 0
 else
+    echo "__STATUS:{TaskStatus.FAILED}__"
     echo "Translation task failed"
     rm -f "$STATUS_FILE"
-    exit 1
 fi
 """

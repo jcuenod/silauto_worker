@@ -1,5 +1,6 @@
 from typing import List
 from app.env import SILNLP_ROOT
+from app.models import TaskStatus
 
 
 def generate_align_script(
@@ -50,12 +51,12 @@ done
 
 # Check the final status
 if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "__STATUS:{TaskStatus.COMPLETED}__"
     echo "Alignment task completed successfully"
     rm -f "$STATUS_FILE"
-    exit 0
 else
     echo "Alignment task failed"
+    echo "__STATUS:{TaskStatus.FAILED}__"
     rm -f "$STATUS_FILE"
-    exit 1
 fi
 """

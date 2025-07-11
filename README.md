@@ -49,6 +49,16 @@ A worker service that processes tasks for the SILAUTO system. Handles four types
 | `CUDA_DEVICE`   | GPU device index to use                                           | `0`                     |
 | `USFM2PDF_PATH` | Path to the [usfm2pdf](https://github.com/jcuenod/usfm2pdf) tool. | `/home/user/usfm2pdf`   |
 
+## Volumes
+
+To enable SSH access from within the container, mount your SSH private key as a volume:
+
+```bash
+-v /path/to/your/id_ed25519:/app/.ssh/id_ed25519:ro
+```
+
+This ensures the worker can authenticate via SSH when running inside Docker. Replace `/path/to/your/id_ed25519` with the path to your SSH private key.
+
 ## License
 
 This project is part of the SILAUTO system.

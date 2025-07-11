@@ -1,4 +1,5 @@
 from app.env import SILNLP_ROOT
+from app.models import TaskStatus
 
 
 def generate_extract_script(task_id: str, project_id: str) -> str:
@@ -42,12 +43,12 @@ done
 
 # Check the final status
 if [ -f "$STATUS_FILE" ] && [ "$(cat $STATUS_FILE)" = "SUCCESS" ]; then
+    echo "__STATUS:{TaskStatus.COMPLETED}__"
     echo "Extraction task completed successfully"
     rm -f "$STATUS_FILE"
-    exit 0
 else
+    echo "__STATUS:{TaskStatus.FAILED}__"
     echo "Extraction task failed"
     rm -f "$STATUS_FILE"
-    exit 1
 fi
 """

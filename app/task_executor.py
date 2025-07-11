@@ -5,7 +5,11 @@ from app.task_scripts.translate import generate_translate_script
 from app.task_scripts.extract import generate_extract_script
 from app.task_scripts.align import generate_align_script
 from app.task_scripts.train import generate_train_script
-from app.models import Task, TaskKind
+from app.models import Task, TaskKind, TaskStatus
+
+USERNAME = os.environ.get("USERNAME")
+
+SUCCESS_STATUS = f"__STATUS:{TaskStatus.COMPLETED}__"
 
 
 class TaskExecutor:
@@ -172,10 +176,13 @@ class TaskExecutor:
             result = subprocess.run(
                 [
                     "ssh",
-                    "-i", "/home/worker/.ssh/id_ed25519",
+                    "-i", "/app/.ssh/id_ed25519",
+                    "-o", "LogLevel=ERROR",
                     "-o", "StrictHostKeyChecking=no",
-                    "user@host.docker.internal",
-                    "/bin/bash -s",
+                    f"{USERNAME}@host.docker.internal",
+                    "/bin/bash",
+                    "-l", # Needs to be a login shell so we get poetry
+                    "-s", # Read script from the `input` prop
                 ],
                 input=open(script_path).read(),
                 capture_output=True,
@@ -195,7 +202,7 @@ class TaskExecutor:
             except:
                 pass
 
-            return result.returncode == 0
+            return SUCCESS_STATUS in result.stdout
 
         except subprocess.TimeoutExpired:
             self.logger.error(f"Script execution timed out for task {self.task.id}")
