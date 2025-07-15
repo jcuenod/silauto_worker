@@ -113,6 +113,7 @@ class SilAutoWorker:
         # Update final status
         final_status = TaskStatus.COMPLETED if success else TaskStatus.FAILED
         message = "Task completed successfully" if success else "Task execution failed"
+        self.logger.info(message)
 
         self.update_task_status(task.id, final_status, message)
 
@@ -124,6 +125,7 @@ class SilAutoWorker:
 
         while True:
             try:
+                self.logger.info("Checking for next task...")
                 # Fetch next task
                 task = self.fetch_next_task()
 
@@ -134,7 +136,9 @@ class SilAutoWorker:
                     continue
 
                 # Process the task
+                self.logger.info("Starting task...")
                 self.process_task(task)
+                self.logger.info("Task complete...")
 
                 # Brief pause between tasks
                 time.sleep(1)
