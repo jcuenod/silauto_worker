@@ -32,7 +32,7 @@ screen -L -d -m -S "$SESSION_NAME" bash -c "
     echo $$ > $PID_FILE
     exec > >(tee -a $LOG_FILE) 2>&1
     echo 'Starting alignment process...'
-    if poetry run python -m silnlp.nmt.align {experiment_name}; then
+    if poetry run python -m silnlp.nmt.analyze {experiment_name}; then
         echo 'SUCCESS' > $STATUS_FILE
     else
         echo 'FAILED' > $STATUS_FILE
