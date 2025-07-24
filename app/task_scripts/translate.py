@@ -1,5 +1,5 @@
 from typing import List
-from app.env import SILNLP_EXPERIMENTS_ROOT, SILNLP_ROOT, USFM2PDF_PATH
+from app.env import CUDA_DEVICE, SILNLP_EXPERIMENTS_ROOT, SILNLP_ROOT, USFM2PDF_PATH
 from app.models import TaskStatus
 
 
@@ -46,7 +46,7 @@ USFM2PDF_PATH={USFM2PDF_PATH if USFM2PDF_PATH else ""}
 echo "Running translate in screen session: $SESSION_NAME"
 echo "Output will be logged to: $LOG_FILE"
 # Start screen session with a wrapper that tracks completion
-screen -L -d -m -S "$SESSION_NAME" bash -c "
+CUDA_VISIBLE_DEVICES={CUDA_DEVICE} screen -L -d -m -S "$SESSION_NAME" bash -c "
     echo $$ > $PID_FILE
     exec > >(tee -a $LOG_FILE) 2>&1
     echo 'Starting translation process...'
