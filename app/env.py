@@ -18,7 +18,7 @@ SILNLP_DATA = os.getenv('SILNLP_DATA', "")
 if not SILNLP_DATA:
     raise ValueError("SILNLP_DATA environment variable is required")
 
-SILNLP_EXPERIMENTS_ROOT = Path(SILNLP_ROOT) / "MT" / "experiments"
+SILNLP_EXPERIMENTS_ROOT = Path(SILNLP_DATA) / "MT/experiments"
 
 CUDA_DEVICE = os.getenv('CUDA_DEVICE', "")
 if not CUDA_DEVICE:
