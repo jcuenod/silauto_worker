@@ -29,7 +29,7 @@ CUDA_VISIBLE_DEVICES={CUDA_DEVICE} screen -L -d -m -S "$SESSION_NAME" bash -c "
     echo $$ > $PID_FILE
     exec > >(tee -a $LOG_FILE) 2>&1
     echo 'Starting training process...'
-    if poetry run python -m silnlp.nmt.experiment --clearml-queue local {experiment_name}; then
+    if poetry run python -m silnlp.nmt.experiment {experiment_name}; then
         echo 'SUCCESS' > $STATUS_FILE
     else
         echo 'FAILED' > $STATUS_FILE
