@@ -18,7 +18,6 @@ class SilAutoWorker:
     def __init__(self):
         self.base_url = SILAUTO_URL.rstrip("/")
         self.logger = logging.getLogger(f"{__name__}.SilAutoWorker")
-        self.session = requests.Session()
 
         self.logger.info("Worker initialized and ready to process tasks")
 
@@ -37,7 +36,7 @@ class SilAutoWorker:
                 f"Fetching next task from: {url} (GPU available: {gpu_available})"
             )
 
-            response = self.session.get(url, timeout=30)
+            response = requests.get(url, timeout=30)
 
             if response.status_code == 404:
                 self.logger.debug("No tasks available (404)")
@@ -87,7 +86,7 @@ class SilAutoWorker:
 
             self.logger.debug(f"Updating task {task_id} status to {status.value}")
 
-            response = self.session.patch(url, json=payload, timeout=30)
+            response = requests.patch(url, json=payload, timeout=30)
             response.raise_for_status()
 
             self.logger.info(
