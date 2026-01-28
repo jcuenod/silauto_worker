@@ -48,7 +48,7 @@ CUDA_VISIBLE_DEVICES={CUDA_DEVICE} screen -L -d -m -S "$SESSION_NAME" bash -c "
     echo $$ > $PID_FILE
     exec > >(tee -a $LOG_FILE) 2>&1
     echo 'Starting translation process...'
-    if poetry run python -m silnlp.nmt.translate {experiment_name} --src-project {source_project_id} --books {books_str} --src-iso {source_script_code} --trg-iso {target_script_code} --checkpoint best; then
+    if poetry run python -m silnlp.nmt.translate {experiment_name} --src-project {source_project_id} --books {books_str} --src-iso {source_script_code} --trg-iso {target_script_code} --checkpoint best --save-confidences; then
         echo 'SUCCESS' > $STATUS_FILE
         {_get_usfm_generate_script(experiment_name, source_project_id) if USFM2PDF_PATH else ""}
     else
